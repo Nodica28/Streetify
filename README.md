@@ -1,6 +1,6 @@
 # Streetify
 
-**Live app:** https://streetify.vercel.app
+**Live app:** https://streetify-nodica.vercel.app
 
 Type any street address and get a Walking Score, a Driving Score, an Urban/Suburban Index, and an interactive map of nearby amenities — with a URL you can share that renders identically for anyone who opens it.
 
