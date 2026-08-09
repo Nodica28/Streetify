@@ -1,0 +1,135 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 48 20% 97%;
+    --foreground: 240 10% 6%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 6%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 6%;
+    --primary: 240 10% 6%;
+    --primary-foreground: 48 20% 97%;
+    --secondary: 240 5% 92%;
+    --secondary-foreground: 240 10% 6%;
+    --muted: 240 5% 92%;
+    --muted-foreground: 240 4% 40%;
+    --accent: 15 100% 55%;
+    --accent-foreground: 48 20% 97%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 48 20% 97%;
+    --border: 240 6% 87%;
+    --input: 240 6% 87%;
+    --ring: 15 100% 55%;
+    --signal: 15 100% 55%;
+    --radius: 0.25rem;
+
+    --cat-groceries: 152 55% 42%;
+    --cat-food: 25 90% 55%;
+    --cat-school: 220 70% 55%;
+    --cat-park: 128 45% 45%;
+    --cat-health: 350 70% 55%;
+    --cat-transit: 280 55% 55%;
+    --cat-shop: 200 50% 45%;
+    --cat-fun: 45 90% 55%;
+  }
+
+  .dark {
+    --background: 240 10% 4%;
+    --foreground: 48 20% 97%;
+    --card: 240 8% 8%;
+    --card-foreground: 48 20% 97%;
+    --popover: 240 8% 8%;
+    --popover-foreground: 48 20% 97%;
+    --primary: 48 20% 97%;
+    --primary-foreground: 240 10% 4%;
+    --secondary: 240 6% 14%;
+    --secondary-foreground: 48 20% 97%;
+    --muted: 240 6% 14%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 15 100% 60%;
+    --accent-foreground: 240 10% 4%;
+    --destructive: 0 62% 45%;
+    --destructive-foreground: 48 20% 97%;
+    --border: 240 6% 18%;
+    --input: 240 6% 18%;
+    --ring: 15 100% 60%;
+    --signal: 15 100% 60%;
+
+    --cat-groceries: 152 50% 55%;
+    --cat-food: 25 90% 62%;
+    --cat-school: 220 70% 68%;
+    --cat-park: 128 45% 58%;
+    --cat-health: 350 75% 68%;
+    --cat-transit: 280 55% 68%;
+    --cat-shop: 200 55% 58%;
+    --cat-fun: 45 90% 62%;
+  }
+
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    font-feature-settings: "ss01", "cv11";
+  }
+  ::selection {
+    background: hsl(var(--signal) / 0.35);
+  }
+}
+
+@layer components {
+  .street-grid {
+    background-image:
+      linear-gradient(to right, hsl(var(--border) / 0.5) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border) / 0.5) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at center, #000 25%, transparent 75%);
+    -webkit-mask-image: radial-gradient(ellipse at center, #000 25%, transparent 75%);
+  }
+
+  .rule {
+    @apply h-px w-full bg-border;
+  }
+
+  .kicker {
+    @apply text-[10px] uppercase tracking-[0.22em] font-medium text-muted-foreground;
+  }
+
+  .display-serif {
+    font-family: var(--font-display), serif;
+    font-feature-settings: "ss01";
+  }
+}
+
+/* Leaflet overrides — match theme */
+.leaflet-container {
+  background: hsl(var(--muted));
+  font-family: var(--font-body), sans-serif;
+}
+.leaflet-tile-pane {
+  filter: grayscale(0.15) contrast(1.05);
+}
+.dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) grayscale(0.35) contrast(0.9) brightness(0.95);
+}
+.leaflet-control-attribution {
+  background: hsl(var(--background) / 0.85) !important;
+  color: hsl(var(--muted-foreground)) !important;
+  font-size: 10px !important;
+}
+.leaflet-control-attribution a {
+  color: hsl(var(--muted-foreground)) !important;
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: hsl(var(--card)) !important;
+  color: hsl(var(--card-foreground)) !important;
+  border-radius: var(--radius) !important;
+}
