@@ -1,183 +1,57 @@
 # Streetify
 
-Type any street address; see three heuristic scores (Walking, Driving, Urban), an interactive map of nearby amenities, and get a shareable URL that renders the same for anyone.
+**Live app:** https://streetify.vercel.app
 
-Built with **Next.js 15 (App Router) + TypeScript + Tailwind + shadcn-style components + Supabase + Leaflet + OpenStreetMap** (Nominatim + Overpass). No paid APIs. Deployed on Vercel.
-
----
-
-## Live demo
-
-_Add the Vercel URL here after deploying._
+Type any street address and get a Walking Score, a Driving Score, an Urban/Suburban Index, and an interactive map of nearby amenities — with a URL you can share that renders identically for anyone who opens it.
 
 ---
 
-## Quick start
+## What I built vs. what AI generated
 
-```bash
+**Me (Justine):**
+- **Pivoted the planning** — reshaped the initial scope into a focused product with three defensible heuristics, a share-by-URL model, and a real hosting path.
+- **Chose the stack:** Next.js 15 (App Router) + TypeScript, TailwindCSS + shadcn-style components, Supabase (Postgres + RLS), Leaflet on OpenStreetMap.
+- **Set up Supabase** — created the project, ran the schema migration in the dashboard, wired the environment for local and production.
+- **Wrote the system requirements:** server-side-only external API calls, deterministic slugs for shareability, 30-day cache TTL, per-IP rate limiting, RLS-restricted tables, no service keys in the browser.
+- **Enforced standards throughout** — caught and renamed a mis-prefixed public secret key before it shipped, required unit + Playwright verification, kept a conventional-commit git history, and made sure `.env` files never touched source control.
+- **Verified end-to-end** in a real browser: home, autocomplete, insights page, map interactions, category filters, theme toggle, share flow, and DB persistence.
+- **Deployed** to Vercel.
+
+**AI (Claude Code):**
+- Implemented the code against the requirements above — scoring functions, Overpass query, insights service, route handlers, React components, Leaflet map, dynamic OG image, and the Vitest + Playwright specs.
+- Drafted the initial editorial design tokens and layouts, then iterated until they passed my review.
+- Diagnosed and fixed the Overpass 504 on dense-city queries (split walk/drive queries, added three-endpoint failover).
+
+---
+
+## Approach
+
+Build the minimum end-to-end path first, then extend. Foundations → scoring math (provable with unit tests) → external clients → API routes → UI. Every phase left the app runnable, so nothing was ever "half-finished." Real addresses across urban / suburban / rural were verified before calling it done.
+
+Scoring math is a pure function, so it's the only thing I trust unit tests to prove correct. Everything else is exercised by a Playwright golden-path spec that runs the full flow: search → insights → copy the URL → open it in a fresh browser context → assert the same page renders.
+
+---
+
+## Design decisions & assumptions
+
+- **OpenStreetMap over paid providers.** Nominatim (geocode) + Overpass (amenities) + OSM tiles. No keys, no billing. Trade-off: Nominatim requires a real `User-Agent` and caps at 1 req/s — the app respects both and adds sliding-window per-IP limits on top.
+- **Deterministic slugs from coordinates** (rounded to ~11 m). Same address → same URL, so sharing is "just links" — no auth, no expiring tokens. Small trade-off: two neighboring addresses that round to the same coord share a page (acceptable for a neighborhood-level tool).
+- **All external calls server-side.** Route handlers + server components. Keeps the Supabase secret key off the browser, gives one place to attach the `User-Agent`, and lets Next.js cache aggressively.
+- **Simple, documented heuristics.** Walking Score = weighted amenity count within 1 km with distance decay and a category-diversity bonus. Driving Score = weighted count within 5 km. Urban Index = density label (urban / suburban / rural). Everything is in `lib/scoring.ts` and easy to tune.
+- **Search history is per-device localStorage** (per the brief). Supabase only backs cross-device shareable pages.
+- **Shared pages are public by design** — the UI notes this to viewers. No auth, no PII collected.
+
+---
+
+## Local dev
+
+```
 pnpm install
-cp .env.local.example .env.local   # then fill in the values below
-node scripts/verify-supabase.mjs   # confirms table exists (points you to migrations if not)
-pnpm dev
+cp .env.local.example .env.local   # fill in Supabase URL + publishable key + secret key
+node scripts/verify-supabase.mjs   # confirms the schema is in place
+pnpm dev                            # http://localhost:3000
+pnpm test                           # Vitest unit tests
+pnpm test:e2e                       # Playwright golden path
 ```
-
-Open http://localhost:3000.
-
-### Environment variables
-
-| Name                              | Where it's used                                       | Notes                          |
-|-----------------------------------|-------------------------------------------------------|--------------------------------|
-| `NEXT_PUBLIC_SUPABASE_URL`        | Server clients only (browser client is a stub)        | Project URL                    |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY`   | Reserved for future browser use                       | Publishable / anon key         |
-| `SUPABASE_SECRET_KEY`             | Server-side Supabase admin client                     | **Never expose to the browser** |
-| `NOMINATIM_USER_AGENT`            | Every outbound Nominatim + Overpass request           | Real contact required by policy |
-
-### Database migration
-
-Supabase's REST client can't run DDL, so run the schema once:
-
-1. Open the SQL editor: `https://supabase.com/dashboard/project/<your-project-ref>/sql/new`
-2. Paste [`supabase/migrations/0001_init.sql`](./supabase/migrations/0001_init.sql)
-3. Click Run
-
-Verify with `node scripts/verify-supabase.mjs`.
-
----
-
-## How the scores are computed
-
-Simple, defensible heuristics. Everything lives in [`lib/scoring.ts`](./lib/scoring.ts) — one file, easy to tune.
-
-**Amenities** come from Overpass (OpenStreetMap). They're bucketed into eight categories, each with a weight reflecting real-world walk-utility:
-
-| Category            | Weight | Examples                                                 |
-|---------------------|--------|----------------------------------------------------------|
-| Groceries           | 3.0    | supermarket, convenience, grocery, butcher, bakery       |
-| Food & Drink        | 1.5    | restaurant, cafe, bar, fast_food                         |
-| Schools & Education | 2.0    | school, kindergarten, university, library                |
-| Parks & Recreation  | 2.5    | park, playground, garden                                 |
-| Healthcare          | 2.0    | pharmacy, clinic, hospital, doctors                      |
-| Transit             | 3.0    | bus_stop, station, subway_entrance                       |
-| Shopping            | 1.5    | mall, department_store, clothes                          |
-| Entertainment       | 1.0    | cinema, theatre, fitness_centre                          |
-
-**Walking Score (0–100)** — weighted amenities within 1 km, with distance decay (amenities beyond 500 m count half), plus a diversity bonus of +5 per unique category (capped at +25).
-
-**Driving Score (0–100)** — same weighting inside 5 km, no distance decay (a car flattens distance), diversity bonus of +4 per category (capped at +20), and a smaller overall multiplier since more amenities show up at that radius.
-
-**Urban Index** — a label based purely on amenity count inside the walking radius:
-
-- `urban` ≥ 80
-- `suburban` 20–79
-- `rural` < 20
-
-Also reports amenity density per km².
-
-These numbers are meant to be **directionally right**, not authoritative. They're documented so a reviewer can see the reasoning, and they're easy to tune in one file.
-
----
-
-## Architecture
-
-```
-Browser
-  └── UI (Tailwind + shadcn-style + Leaflet)
-  └── LocalStorage — per-device search history
-
-Next.js Route Handlers (server-only)
-  ├── /api/lookup   — geocode → cache-check → overpass → score → upsert → slug
-  └── /api/suggest  — debounced autocomplete proxy to Nominatim
-
-External services (server-side only, User-Agent set)
-  ├── Nominatim  (geocoding + autocomplete)
-  └── Overpass   (amenities within 5 km)
-
-Supabase Postgres
-  └── insights table — durable cache + backing store for shareable URLs
-```
-
-### Why the server does all API calls
-
-- Secrets never leave the server.
-- One place to attach the required Nominatim `User-Agent`.
-- Aggressive caching (30-day cache TTL for insights, per-fetch `next.revalidate` for API responses).
-- Server-side rate-limiting per IP.
-
-### Shareable URLs
-
-Every lookup is stored under a **deterministic slug** derived from rounded coordinates (`lib/slug.ts`). Same address → same URL. When someone opens `/a/<slug>`, the page is server-rendered directly from the Supabase cache, so scores and map load fast and identical for everyone.
-
-Search history is separately kept in localStorage per device, per the brief.
-
----
-
-## Security
-
-- `SUPABASE_SECRET_KEY` is server-only, referenced only from files with `import "server-only"`.
-- Row-Level Security is on for `insights`. Anon has read access; writes go through the service role from Route Handlers.
-- Address strings are length-capped (200 chars) and parameterized via the Supabase client.
-- Sliding-window IP rate limits on `/api/lookup` (10/min) and `/api/suggest` (30/min).
-- Nominatim `User-Agent` is set on every request (their usage policy requires it).
-- No user auth or cookies — CSRF surface is minimal.
-- Shared insight pages are public by design; the UI notes this to viewers.
-
----
-
-## Testing
-
-**Unit** (Vitest — 24 tests):
-```bash
-pnpm test
-```
-Covers scoring math (score bounds, distance decay, diversity bonus, urban labels) and slug determinism.
-
-**End-to-end** (Playwright — golden path):
-```bash
-pnpm test:e2e:install   # first time only
-pnpm test:e2e
-```
-Covers: home → autocomplete → insights page → copy URL → identical render in a fresh browser context.
-
-**Manual checklist** (things it's honest to eyeball):
-
-1. Rural address → low scores + `rural` label.
-2. History strip on home shows recent searches after two lookups; clicking one reopens the cached insight.
-3. Dark/light toggle works, map tiles invert cleanly in dark mode.
-4. Mobile viewport (Chrome DevTools) — columns stack, map is still interactive, share works.
-5. Paste a live URL into a social preview debugger (Twitter/LinkedIn) — the OG image renders with address + scores.
-
----
-
-## Deploy to Vercel
-
-1. Push to GitHub.
-2. `vercel` in this folder (or import via the dashboard).
-3. Set env vars in the Vercel project settings — same four as `.env.local`.
-4. Set `NEXT_PUBLIC_SITE_URL` to the live URL (used for OG image absolute paths).
-5. Deploy.
-6. Smoke-test the live URL against the manual checklist above.
-
----
-
-## File map (the interesting bits)
-
-- [`app/page.tsx`](./app/page.tsx) — home / hero
-- [`app/a/[slug]/page.tsx`](./app/a/[slug]/page.tsx) — insights page (server component)
-- [`app/a/[slug]/opengraph-image.tsx`](./app/a/[slug]/opengraph-image.tsx) — dynamic social preview
-- [`app/api/lookup/route.ts`](./app/api/lookup/route.ts) — address → slug
-- [`app/api/suggest/route.ts`](./app/api/suggest/route.ts) — autocomplete proxy
-- [`lib/scoring.ts`](./lib/scoring.ts) — all scoring heuristics
-- [`lib/insights-service.ts`](./lib/insights-service.ts) — orchestration: geocode + amenities + cache
-- [`lib/geocode.ts`](./lib/geocode.ts), [`lib/overpass.ts`](./lib/overpass.ts) — external API clients
-- [`lib/history.ts`](./lib/history.ts) — localStorage helpers
-- [`components/insights-map.tsx`](./components/insights-map.tsx) — Leaflet map with radius + category toggles
-- [`components/score-card.tsx`](./components/score-card.tsx) — editorial score cards
-- [`supabase/migrations/0001_init.sql`](./supabase/migrations/0001_init.sql) — schema
-
----
-
-## Time & scope notes
-
-The brief called for 1–3 hours; this went slightly over that with the added Playwright test, dynamic OG image, toggleable map controls, and address autocomplete. Everything the brief listed as required is in.
 
 Data © OpenStreetMap contributors.
